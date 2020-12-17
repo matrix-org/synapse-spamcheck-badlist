@@ -26,7 +26,7 @@
 # lowercase and may contain an explicit port.
 # Examples: matrix.org, localhost:8080
 #
-server_name: "localhost:8080"
+server_name: localhost:8080
 
 # When running as a daemon, the file to store the pid in
 #
@@ -48,7 +48,7 @@ pid_file: /data/homeserver.pid
 # use synapse with a reverse proxy, this should be the URL to reach
 # synapse via the proxy.
 #
-#public_baseurl: https://example.com/
+public_baseurl: http://localhost:8080
 
 # Set the soft limit on the number of file descriptors synapse can use
 # Zero is used to indicate synapse should set the soft limit to the
@@ -198,7 +198,7 @@ listeners:
   # If you plan to use a reverse proxy, please see
   # https://github.com/matrix-org/synapse/blob/master/docs/reverse_proxy.md.
   #
-  - port: 7680
+  - port: 8080
     tls: false
     type: http
     x_forwarded: true
@@ -738,7 +738,7 @@ database:
     user: postgres
     password: postgres
     database: postgres
-    host: localhost
+    host: postgres
     cp_min: 5
     cp_max: 10
 
@@ -2266,12 +2266,16 @@ push:
 # usernames, as well as remote users by redacting incoming events.
 #
 spam_checker:
-   #- module: "my_custom_project.SuperSpamChecker"
-   #  config:
-   #    example_option: 'things'
-   #- module: "some_other_project.BadEventStopper"
-   #  config:
-   #    example_stop_events_from: ['@bad:example.com']
+  - module: "synapse_spamcheck_badlist.BadListFilter"
+    config:
+      # The URL of the server using this filter.
+      base_url: "http://localhost:8080"
+      # The name of the table containing links.
+      # It MUST contain at least one value `url TEXT PRIMARY KEY NOT NULL`.
+      links_table: "image_filter.iwf_links"
+      # The name of the table containing MD5s
+      # It MUST contain at least one value `md5 TEXT PRIMARY KEY NOT NULL`.
+      md5_table: "image_filter.iwf_md5"
 
 
 ## Rooms ##

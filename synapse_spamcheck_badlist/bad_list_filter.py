@@ -175,18 +175,25 @@ class BadListFilter(object):
         # Not spam
         return False
 
+    def check_username_for_spam(self, user_profile):
+        return False  # allow all usernames
+
     def user_may_invite(
         self, inviter_userid: str, invitee_userid: str, room_id: str
     ) -> bool:
+        # Allow all invites
         return True
 
     def user_may_create_room(self, userid: str) -> bool:
+        # Allow all room creations
         return True
 
     def user_may_create_room_alias(self, userid: str, room_alias: str) -> bool:
+        # Allow all room aliases
         return True
 
     def user_may_publish_room(self, userid: str, room_id: str) -> bool:
+        # Allow publishing all rooms
         return True
 
     @staticmethod
