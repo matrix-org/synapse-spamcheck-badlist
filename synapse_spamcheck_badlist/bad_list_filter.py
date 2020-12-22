@@ -120,7 +120,8 @@ class BadListFilter(object):
             return False
 
         # If it's a text content, look for links.
-        if event["content"]["msgtype"] == "m.text":
+        # Note that even files have a text content (the description).
+        if event["content"]["msgtype"] in ["m.text", "m.emote", "m.notice", "m.file", "m.image", "m.audio"]:
             if not await self.can_we_check_links():
                 return False
 
@@ -140,7 +141,7 @@ class BadListFilter(object):
                         return True
 
         # If it's a file, download content, extract hash.
-        elif event["content"]["msgtype"] == "m.file":
+        if event["content"]["msgtype"] in ["m.file", "m.image", "m.audio"]:
             if not await self.can_we_check_md5():
                 return False
 
@@ -175,18 +176,25 @@ class BadListFilter(object):
         # Not spam
         return False
 
+    def check_username_for_spam(self, user_profile):
+        return False  # allow all usernames
+
     def user_may_invite(
         self, inviter_userid: str, invitee_userid: str, room_id: str
     ) -> bool:
+        # Allow all invites
         return True
 
     def user_may_create_room(self, userid: str) -> bool:
+        # Allow all room creations
         return True
 
     def user_may_create_room_alias(self, userid: str, room_alias: str) -> bool:
+        # Allow all room aliases
         return True
 
     def user_may_publish_room(self, userid: str, room_id: str) -> bool:
+        # Allow publishing all rooms
         return True
 
     @staticmethod
