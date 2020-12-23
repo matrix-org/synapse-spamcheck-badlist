@@ -119,12 +119,9 @@ class BadListFilter(object):
             # We only filter messages.
             return False
 
-        # If it's a text content, look for links.
-        # Note that even files have a text content (the description).
-        if event["content"]["msgtype"] in ["m.text", "m.emote", "m.notice", "m.file", "m.image", "m.audio"]:
-            if not await self.can_we_check_links():
-                return False
-
+        # Look for links in text content.
+        # Note that all messages can have a text content, even files (as part of the description), etc.
+        if await self.can_we_check_links():
             # Check for links in text, both unformatted and formatted.
             #
             # We always lower-case the url, as the IWF database is lowercase.
