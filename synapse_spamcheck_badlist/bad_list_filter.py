@@ -119,13 +119,15 @@ class BadListFilter(object):
             # We only filter messages.
             return False
 
+        content = event.get("content", {})
+
         # Look for links in text content.
         # Note that all messages can have a text content, even files (as part of the description), etc.
         if await self.can_we_check_links():
             # Check for links in text, both unformatted and formatted.
             #
             # We always lower-case the url, as the IWF database is lowercase.
-            for text in [event.get("content", {}).get("body", ""), event.get("content", {}).get("formatted_body", "")]:
+            for text in [content.get("body", ""), content.get("formatted_body", "")]:
                 # Run a first, faster test.
                 if not self._linkifier.test(text):
                     continue
@@ -138,11 +140,11 @@ class BadListFilter(object):
                         return True
 
         # If it's a file, download content, extract hash.
-        if event["content"]["msgtype"] in ["m.file", "m.image", "m.audio"]:
+        if content.get("msgtype", "") in ["m.file", "m.image", "m.audio"]:
             if not await self.can_we_check_md5():
                 return False
 
-            match = self._mxc_re.match(event["content"]["url"])
+            match = self._mxc_re.match(content.get("url", ""))
             if match != None:
                 server_name = match.group('server_name')
                 media_id = match.group('media_id')
