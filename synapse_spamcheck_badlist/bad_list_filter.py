@@ -132,8 +132,8 @@ class BadListFilter(object):
             # We always lower-case the url, as the IWF database is lowercase.
             with self._link_test_performance.time():
                 for text in [content.get("body", ""), content.get("formatted_body", "")]:
-                    # Run a first, faster test.
                     with self._linkify_test_performance.time():
+                        # Run a first, faster test.
                         if not self._linkifier.test(text):
                             continue
                         # Now run the slower test, if necessary, using results cached from the faster test.
