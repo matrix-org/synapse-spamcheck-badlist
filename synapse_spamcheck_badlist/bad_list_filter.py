@@ -16,6 +16,7 @@ import hashlib
 import logging
 import re
 
+from prometheus_client import Histogram
 from linkify_it import LinkifyIt
 from linkify_it.tlds import TLDS
 from urllib.parse import quote as urlquote
@@ -66,6 +67,8 @@ class BadListFilter(object):
             })
         )
         self._scheme_re = re.compile("https?:/*|git:/*|ftp:/*")
+        self._linkify_test_performance = Histogram('linkify_test_performance', 'Performance of calls to linkifier.test, in seconds')
+        self._link_test_performance = Histogram('link_test_performance', 'Total performance cost of checking links in a message, in seconds')
 
         # One of:
         # - `None` if we haven't checked yet whether the database is present;
@@ -127,17 +130,19 @@ class BadListFilter(object):
             # Check for links in text, both unformatted and formatted.
             #
             # We always lower-case the url, as the IWF database is lowercase.
-            for text in [content.get("body", ""), content.get("formatted_body", "")]:
-                # Run a first, faster test.
-                if not self._linkifier.test(text):
-                    continue
-                # Now run the slower test, if necessary, using results cached from the faster test.
-                for match in self._linkifier.match(text) or []:
-                    link = re.sub(self._scheme_re, "", match.url.lower())
-                    is_bad_link = await self._api.run_db_interaction("Check link against evil db", _db_is_bad_link, self._links_table, link)
-                    if is_bad_link:
-                        logger.info("Rejected bad link")
-                        return True
+            with self._link_test_performance.time():
+                for text in [content.get("body", ""), content.get("formatted_body", "")]:
+                    with self._linkify_test_performance.time():
+                        # Run a first, faster test.
+                        if not self._linkifier.test(text):
+                            continue
+                        # Now run the slower test, if necessary, using results cached from the faster test.
+                        for match in self._linkifier.match(text) or []:
+                            link = re.sub(self._scheme_re, "", match.url.lower())
+                            is_bad_link = await self._api.run_db_interaction("Check link against evil db", _db_is_bad_link, self._links_table, link)
+                            if is_bad_link:
+                                logger.info("Rejected bad link")
+                                return True
 
         # If it's a file, download content, extract hash.
         if content.get("msgtype", "") in ["m.file", "m.image", "m.audio"]:
