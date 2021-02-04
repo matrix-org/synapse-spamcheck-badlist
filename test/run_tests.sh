@@ -37,7 +37,7 @@ register_new_matrix_user -c /data/homeserver.yaml -u user_2 -p user_2 --no-admin
 
 # 4. Running test
 echo TESTER: Running test
-python /data/test/4_test.py
+python /data/test/4_test.py &> /data/test.log
 RESULT=$?
 
 # 5. In case of failure, display logs

@@ -153,42 +153,24 @@ class BadListFilter(object):
                         logger.info("Rejected bad link")
                         return True
 
-        # If it's a file, download content, extract hash.
-        with self._md5_check_performance.time():
-            if content.get("msgtype", "") in ["m.file", "m.image", "m.audio"]:
-                if not await self.can_we_check_md5():
-                    return False
-
-                match = self._mxc_re.match(content.get("url", ""))
-                if match != None:
-                    server_name = match.group('server_name')
-                    media_id = match.group('media_id')
-                    response = None
-                    try:
-                        url = "%s/_matrix/media/r0/download/%s/%s" % (
-                                self._base_url,
-                                urlquote(server_name),
-                                urlquote(media_id)
-                        )
-                        response = await self._api.http_client.request("GET", url)
-                    except Exception as e:
-                        # In case of timeout or error, there's nothing we can do.
-                        # Let's not take the risk of blocking valid contents.
-                        logger.warn("Could not download media: '%s', assuming it's not spam." % e)
-                        return False
-                    if response.code == 429:
-                        logger.warn("We were rate-limited, assuming it's not spam.")
-                        return False
-
-                    md5 = hashlib.md5()
-                    await response.collect(lambda batch: md5.update(batch))
-                    is_bad_upload = await self._api.run_db_interaction("Check upload against evil db", _db_is_bad_upload, self._md5_table, md5.hexdigest())
-                    if is_bad_upload:
-                        logger.info("Rejected bad upload")
-                        return True
-
         # Not spam
         return False
+
+    async def check_media_file_for_spam(self, file_wrapper, file_info):
+        if await self.can_we_check_md5():
+            logger.info("Checking media file")
+            # Compute MD5 of file.
+            hasher = hashlib.md5()
+            await file_wrapper.write_chunks_to(hasher.update)
+
+            hex_digest = hasher.hexdigest()
+
+            # Check if it shows up in the db.
+            if await self._api.run_db_interaction("Check whether this md5 shows up in the database", _db_is_bad_upload, self._md5_table, hex_digest):
+                logger.info("Rejected bad media file")
+                return True
+
+        return False  # allow all media
 
     def check_username_for_spam(self, user_profile):
         return False  # allow all usernames
