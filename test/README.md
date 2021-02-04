@@ -12,8 +12,9 @@ Use the following steps to run tests locally.
 ```sh
 # Prepare the latest Synapse docker image (slow, you don't need to do it often)
 $ ./test/before_test.sh
+$ docker-compose down --remove-orphans
 # Purge any previous version of the test, otherwise `docker-compose` ignores changes.
-$ docker container purge --force
+$ docker container prune
 # Launch the test
 $ docker-compose up --build --abort-on-container-exit
 ```

@@ -20,4 +20,3 @@ services:
       SYNAPSE_POSTGRES_USER: postgres
       SYNAPSE_POSTGRES_PASSWORD: postgres
     working_dir: /data
-

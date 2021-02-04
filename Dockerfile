@@ -6,9 +6,11 @@ FROM matrixdotorg/synapse:latest
 # Install extension.
 WORKDIR /data
 COPY . .
+
+RUN apt-get update --quiet && apt-get install postgresql-client gcc --yes --quiet
+
 RUN pip install .
 
-RUN apt-get update --quiet && apt-get install postgresql-client --yes --quiet
 
 # Run
 #ENTRYPOINT ["tail", "-f", "/data/test/run_tests.sh"]

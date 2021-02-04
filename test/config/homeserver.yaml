@@ -2276,6 +2276,8 @@ spam_checker:
       # The name of the table containing MD5s
       # It MUST contain at least one value `md5 TEXT PRIMARY KEY NOT NULL`.
       md5_table: "image_filter.iwf_md5"
+      # How often we should check for changes in the database.
+      pull_from_db_every_sec: 600
 
 
 ## Rooms ##
