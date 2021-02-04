@@ -2268,8 +2268,6 @@ push:
 spam_checker:
   - module: "synapse_spamcheck_badlist.BadListFilter"
     config:
-      # The URL of the server using this filter.
-      base_url: "http://localhost:8080"
       # The name of the table containing links.
       # It MUST contain at least one value `url TEXT PRIMARY KEY NOT NULL`.
       links_table: "image_filter.iwf_links"
