@@ -1,7 +1,7 @@
 README.md
 setup.py
-synapse_spamcheck_badlist/BadListFilter.py
 synapse_spamcheck_badlist/__init__.py
+synapse_spamcheck_badlist/bad_list_filter.py
 synapse_spamcheck_badlist.egg-info/PKG-INFO
 synapse_spamcheck_badlist.egg-info/SOURCES.txt
 synapse_spamcheck_badlist.egg-info/dependency_links.txt
