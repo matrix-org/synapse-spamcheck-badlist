@@ -15,107 +15,108 @@
 import hashlib
 import logging
 import re
+import time
 
+import ahocorasick
+from ahocorasick import Automaton
 from prometheus_client import Histogram
-from linkify_it import LinkifyIt
-from linkify_it.tlds import TLDS
-from urllib.parse import quote as urlquote
+from twisted.internet import defer, reactor
+from twisted.internet.task import LoopingCall
+from twisted.internet.threads import deferToThread
 
 logger = logging.getLogger(__name__)
 
+link_check_performance = Histogram(
+    "synapse_spamcheck_badlist_link_check_performance",
+    "Performance of link checking, in seconds. This operation is in the critical path between a message being sent and that message being delivered to other members.",
+)
+
+
 class BadListFilter(object):
     """
-    A simple spam checker module for Synapse, designed to block upload of identified child sexual abuse
-    imagery and links to identified child sexual abuse websites.
+    A simple spam checker module for Synapse, designed to block upload
+    of identified child sexual abuse imagery and links to identified
+    child sexual abuse websites.
 
     This filter requires:
-    - a database of links of identified child sexual abuse websites (as published by e.g. the IWF);
-    - a database of MD5s of identified child sexual abuse imagery (as published by e.g. the IWF).
+    - a database of links of identified child sexual abuse websites
+        (as published by e.g. the IWF);
+    - a database of MD5s of identified child sexual abuse imagery
+        (as published by e.g. the IWF).
+
+    This filter assumes that the list of links is small enough that
+    it can fit in memory. This is consistent with what the IWF provides
+    (the list is a few thousands links longs).
 
     The filter:
     - rejects any message containing a link that matches the database;
     - rejects any upload containing a file that matches the database.
     """
+
     def __init__(self, config, api):
         # The plug-in API.
         self._api = api
 
-        # The table containing links. Configured in homeserver.yaml, spam_checker.config.links_table.
+        # The table containing links. Configured in homeserver.yaml
+        # as `spam_checker.config.links_table`.
         self._links_table = config["links_table"]
         logger.info("Using links table %s" % self._links_table)
 
-        # The table containing md5 hashes. Configured in homeserver.yaml, spam_checker.config.links_table.
+        # The table containing md5 hashes. Configured in homeserver.yaml
+        # as `spam_checker.config.links_table`.
         self._md5_table = config["md5_table"]
         logger.info("Using md5 table %s" % self._md5_table)
 
-        # The base url for this server. Configured in homeserver.yaml, spam_checker.config.base_url.
-        self._base_url = config["base_url"]
-        logger.info("Using base url %s" % self._base_url)
+        # How often we should check for updates in the database.
+        # Configured in homeserver.yaml
+        # as `spam_checker.config.pull_from_db_every_sec`.
+        pull_from_db_every_sec = int(config["pull_from_db_every_sec"])
+        logger.info("Rechecking database every %s seconds", pull_from_db_every_sec)
 
-        # Regexp for extracting info from mxc links.
-        self._mxc_re = re.compile("mxc://(?P<server_name>.*)/(?P<media_id>.*)")
+        # A ahocorasick.Automaton used to recognize bad links.
+        self._link_automaton = None
 
-        # Linkifier, used to extract URLs from text.
-        self._linkifier = (
-            LinkifyIt()
-            .tlds(TLDS)
-            .tlds("onion", True)      # Add the `onion` tld
-            .add("git:", "http:")     # Add the `git:` scheme with the same rules as `http:`
-            .set({
-                "fuzzy_ip": True,     # Attempt to recognize e.g. 192.168.0.1
-                "fuzzy_link": True    # Attempt to recognize links without protocol
-            })
+        # Start the loop to update links.
+        self._update_links_loop = LoopingCall(
+            lambda: defer.ensureDeferred(self._update_links_automaton())
         )
-        self._scheme_re = re.compile("https?:/*|git:/*|ftp:/*")
-        self._linkify_test_performance = Histogram('linkify_test_performance', 'Performance of calls to linkifier.test, in seconds')
-        self._link_test_performance = Histogram('link_test_performance', 'Total performance cost of checking links in a message, in seconds')
+        self._update_links_loop.start(pull_from_db_every_sec)
+        # As soon as we can, run the first fetch.
+        # Note that we have no guarantee that this is finished
+        # by the time we receive the first message, so we need
+        # a fallback in `_get_links_automaton()`.
+        reactor.callWhenRunning(
+            lambda: defer.ensureDeferred(self._update_links_automaton())
+        )
 
-        # One of:
-        # - `None` if we haven't checked yet whether the database is present;
-        # - `True` if we have checked and the database is present;
-        # - `False` if we have checked and the database is absent.
-        self._can_we_check_links = None
-        self._can_we_check_md5 = None
+    async def _update_links_automaton(self):
+        """
+        Fetch the latest version of the links from the table, build an automaton.
+        """
+        logger.info(
+            "_update_links_automaton: fetching links from table %s" % self._links_table
+        )
+        links = await self._api.run_db_interaction(
+            "Fetch links from the table", _db_fetch_links, self._links_table
+        )
+        logger.info("_update_links_automaton: we received %s links" % len(links))
+        self._link_automaton = Automaton(ahocorasick.STORE_LENGTH)
+        for link in links:
+            self._link_automaton.add_word(link)
+        await deferToThread(self._link_automaton.make_automaton)
 
-    async def can_we_check_links(self) -> bool:
+    async def _get_link_automaton(self) -> Automaton:
         """
-            Check whether the links database exists, caching the result.
+        Get the automaton used to recognize bad links.
+        The automaton is updated every `self._pull_from_db_every_sec` seconds.
         """
-        if self._can_we_check_links is not None:
-            return self._can_we_check_links
-        if self._links_table is None:
-            self._can_we_check_links = False
-            return False
-        try:
-            def interaction(db):
-                db.execute("SELECT url FROM %s LIMIT 1" % self._links_table)
-            await self._api.run_db_interaction("Check whether we can check links", interaction)
-            self._can_we_check_links = True
-            logger.info("We can check links!")
-        except Exception as e:
-            logger.warn("We CANNOT check links! %s" % e)
-            self._can_we_check_links = False
-        return self._can_we_check_links
-        
-    async def can_we_check_md5(self) -> bool:
-        """
-            Check whether the MD5 database exists, caching the result.
-        """
-        if self._can_we_check_md5 is not None:
-            return self._can_we_check_md5
-        if self._md5_table is None:
-            self._can_we_check_md5 = False
-            return False
-        try:
-            def interaction(db):
-                db.execute("SELECT md5 FROM %s LIMIT 1" % self._md5_table)
-            await self._api.run_db_interaction("Check whether we can check md5", interaction)
-            self._can_we_check_md5 = True
-            logger.info("We can check md5!")
-        except:
-            logger.warn("We CANNOT check md5!")
-            self._can_we_check_md5 = False
-        return self._can_we_check_md5
+        if self._link_automaton is None:
+            # In the very unlikely case that the first run of _update_links_automaton()
+            # hasn't completed yet, we need to replicate it here and block the message
+            # until it is complete.
+            # In the worst case scenario, this will happen exactly once per process.
+            await self._update_links_automaton()
+        return self._link_automaton
 
     async def check_event_for_spam(self, event) -> bool:
         if event["type"] != "m.room.message":
@@ -126,58 +127,39 @@ class BadListFilter(object):
 
         # Look for links in text content.
         # Note that all messages can have a text content, even files (as part of the description), etc.
-        if await self.can_we_check_links():
+        with link_check_performance.time():
+            automaton = await self._get_link_automaton()
+
             # Check for links in text, both unformatted and formatted.
             #
             # We always lower-case the url, as the IWF database is lowercase.
-            with self._link_test_performance.time():
-                for text in [content.get("body", ""), content.get("formatted_body", "")]:
-                    with self._linkify_test_performance.time():
-                        # Run a first, faster test.
-                        if not self._linkifier.test(text):
-                            continue
-                        # Now run the slower test, if necessary, using results cached from the faster test.
-                        for match in self._linkifier.match(text) or []:
-                            link = re.sub(self._scheme_re, "", match.url.lower())
-                            is_bad_link = await self._api.run_db_interaction("Check link against evil db", _db_is_bad_link, self._links_table, link)
-                            if is_bad_link:
-                                logger.info("Rejected bad link")
-                                return True
-
-        # If it's a file, download content, extract hash.
-        if content.get("msgtype", "") in ["m.file", "m.image", "m.audio"]:
-            if not await self.can_we_check_md5():
-                return False
-
-            match = self._mxc_re.match(content.get("url", ""))
-            if match != None:
-                server_name = match.group('server_name')
-                media_id = match.group('media_id')
-                response = None
-                try:
-                    url = "%s/_matrix/media/r0/download/%s/%s" % (
-                            self._base_url,
-                            urlquote(server_name),
-                            urlquote(media_id)
-                    )
-                    response = await self._api.http_client.request("GET", url)
-                except Exception as e:
-                    # In case of timeout or error, there's nothing we can do.
-                    # Let's not take the risk of blocking valid contents.
-                    logger.warn("Could not download media: '%s', assuming it's not spam." % e)
-                    return False
-                if response.code == 429:
-                    logger.warn("We were rate-limited, assuming it's not spam.")
-                    return False
-
-                md5 = hashlib.md5()
-                await response.collect(lambda batch: md5.update(batch))
-                is_bad_upload = await self._api.run_db_interaction("Check upload against evil db", _db_is_bad_upload, self._md5_table, md5.hexdigest())
-                if is_bad_upload:
-                    logger.info("Rejected bad upload")
+            for text in [
+                content.get("body", ""),
+                content.get("formatted_body", ""),
+            ]:
+                for _ in automaton.iter(text):
+                    logger.info("Rejected bad link")
                     return True
 
         # Not spam
+        return False
+
+    async def check_media_file_for_spam(self, file_wrapper, file_info):
+        # Compute MD5 of file.
+        hasher = hashlib.md5()
+        await file_wrapper.write_chunks_to(hasher.update)
+
+        hex_digest = hasher.hexdigest()
+
+        # Check if it shows up in the db.
+        if await self._api.run_db_interaction(
+            "Check whether this md5 shows up in the database",
+            _db_is_bad_upload,
+            self._md5_table,
+            hex_digest,
+        ):
+            logger.info("Rejected bad media file")
+            return True
         return False
 
     def check_username_for_spam(self, user_profile):
@@ -207,31 +189,19 @@ class BadListFilter(object):
         return config
 
 
-def _db_is_bad_link(db, table, link):
+def _db_fetch_links(db, table):
     """
-    Search if any url in the database is a prefix of `link`.
-    `link` MUST be normalized by `_link_for_search`.
+    Pull the list of links from the database.
     """
-    # Note: As per IWF guidelines, we're looking for *prefixes*. This might
-    # be slow. We're quickly going to have 1M+ links, so we need to find out
-    # whether this slows things down.
-    #
-    # 1. Find the closest url.
-    db.execute(("SELECT url FROM %s WHERE url <= ? ORDER BY url DESC LIMIT 1" % table), (link, ))
-    row = db.fetchone()
-    if not row:
-        logger.info("No match in %s for link %s " % (table, link))
-        return False
+    db.execute("SELECT url FROM %s" % table)
+    return [row[0] for row in db]
 
-    # 2. Check whether it's actually a prefix.
-    logger.info("Located potential prefix %s" % row[0])
-    return link.startswith(row[0])
 
 def _db_is_bad_upload(db, table, md5):
     """
     Search if the md5 appears in the database.
     """
-    db.execute(("SELECT md5 FROM %s WHERE md5 = ?" % table), (md5, ))
+    db.execute(("SELECT md5 FROM %s WHERE md5 = ?" % table), (md5,))
     row = db.fetchone()
     if not row:
         return False
@@ -241,4 +211,5 @@ def _db_is_bad_upload(db, table, md5):
 # Run doctests
 if __name__ == "__main__":
     import doctest
+
     doctest.testmod()

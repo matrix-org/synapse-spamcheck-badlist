@@ -1,6 +1,6 @@
 Metadata-Version: 1.0
 Name: synapse-spamcheck-badlist
-Version: 0.1.0
+Version: 0.2.0
 Summary: A Synapse spam filter designed to block links and upload of content already known as bad. The typical use case is to plug this with a list of links and MD5s of child sexual abuse, as published by the IWF.
 Home-page: UNKNOWN
 Author: David Teller

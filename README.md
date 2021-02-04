@@ -14,7 +14,7 @@ The filter:
 
 ## Requirements
 
-You need Synapse >= 1.25.0.
+You need Synapse >= 1.28.0.
 
 ## Installation
 
@@ -36,7 +36,8 @@ spam_checker:
       # The name of the table containing MD5s
       # It MUST contain at least one value `md5 TEXT PRIMARY KEY NOT NULL`.
       md5_table: "image_filter.iwf_md5"
+      # How often we should check for changes in the database, in seconds.
+      pull_from_db_every_sec: 600
 ```
 
-Synapse will need to be restarted to apply the changes. Links or MD5s added to the database
-will be mirrored in real time.
+Synapse will need to be restarted to apply the changes. Links added to the database will be used within `pull_from_db_every_sec` second, while MD5s added to the database will be used immediately.

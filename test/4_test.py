@@ -7,7 +7,8 @@ import time
 import requests
 
 logging.basicConfig(filename = "/data/test.log")
-logger = logging.getLogger("Test")
+logger = logging.getLogger("synapse_spamcheck_badlist.test")
+
 
 class Test:
     def __init__(self):
@@ -80,7 +81,7 @@ class Test:
         """
         Upload a file.
 
-        Argument `prefix` is prepended to the file name, to aid with lookup up
+        Argument `prefix` is prepended to the file name, to aid with looking up
         stuff in the Synapse logs.
         """
         response = requests.post('http://localhost:8080/_matrix/media/r0/upload?filename=%s-%s' % (prefix, uuid.uuid1()),
@@ -90,7 +91,7 @@ class Test:
             },
             data = content
         ).json()
-        return response['content_uri']
+        return response.get('content_uri', None)
 
     def _sync_with_server(self, since):
         """
@@ -182,9 +183,10 @@ class Test:
         good_mxid = self._upload_content('good', good_file_content)
         logger.info('Good image is %s' % good_mxid)
 
-        logger.info('Upload a bad image, for the time being, it should be accepted')
+        logger.info('Upload a bad image, it should be rejected')
         evil_mxid = self._upload_content('evil', evil_file_content)
-        logger.info('Bad image is %s' % evil_mxid)
+        assert evil_mxid is None
+
 
         for message_type in ['m.file', 'm.image', 'm.audio']:
             logger.info('Send good image with good description, it should be accepted')
@@ -214,26 +216,6 @@ class Test:
                         'w': 320,
                         'h': 200,
                         'size': len(good_file_content),
-                    }
-                }
-            )
-            if event_id is None:
-                logger.info('Message was rejected immediately')
-            else:
-                # Message may be redacted later
-                bad_events[event_id] = "Good image with bad description, type %s" % message_type
-
-            logger.info('Send bad image with good description, it should be rejected')
-            event_id = self._send_message_to_room(
-                'bad-image-with-good-description',
-                    {
-                    'body': 'A text without any link',
-                    'msgtype': message_type,
-                    'url': evil_mxid,
-                    'info': {
-                        'w': 320,
-                        'h': 200,
-                        'size': len(evil_file_content),
                     }
                 }
             )
