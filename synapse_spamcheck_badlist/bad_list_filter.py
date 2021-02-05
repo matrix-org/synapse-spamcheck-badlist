@@ -106,7 +106,7 @@ class BadListFilter(object):
                 self._link_automaton.add_word(link)
             await deferToThread(self._link_automaton.make_automaton)
         except Exception as e:
-            logger.error("_update_links_automaton: could not update %s" % e)
+            logger.exception("_update_links_automaton: could not update")
             raise e
 
     async def _get_link_automaton(self) -> Automaton:
