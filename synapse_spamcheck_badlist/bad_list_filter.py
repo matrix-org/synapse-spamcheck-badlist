@@ -80,7 +80,7 @@ class BadListFilter(object):
         self._update_links_loop = LoopingCall(
             lambda: defer.ensureDeferred(self._update_links_automaton())
         )
-        self._update_links_loop.start(pull_from_db_every_sec)
+        self._update_links_loop.start(pull_from_db_every_sec, now=False)
         # As soon as we can, run the first fetch.
         # Note that we have no guarantee that this is finished
         # by the time we receive the first message, so we need
@@ -96,14 +96,18 @@ class BadListFilter(object):
         logger.info(
             "_update_links_automaton: fetching links from table %s" % self._links_table
         )
-        links = await self._api.run_db_interaction(
-            "Fetch links from the table", _db_fetch_links, self._links_table
-        )
-        logger.info("_update_links_automaton: we received %s links" % len(links))
-        self._link_automaton = Automaton(ahocorasick.STORE_LENGTH)
-        for link in links:
-            self._link_automaton.add_word(link)
-        await deferToThread(self._link_automaton.make_automaton)
+        try:
+            links = await self._api.run_db_interaction(
+                "Fetch links from the table", _db_fetch_links, self._links_table
+            )
+            logger.info("_update_links_automaton: we received %s links" % len(links))
+            self._link_automaton = Automaton(ahocorasick.STORE_LENGTH)
+            for link in links:
+                self._link_automaton.add_word(link)
+            await deferToThread(self._link_automaton.make_automaton)
+        except Exception as e:
+            logger.exception("_update_links_automaton: could not update")
+            raise e
 
     async def _get_link_automaton(self) -> Automaton:
         """
