@@ -60,12 +60,12 @@ class BadListFilter(object):
         # The table containing links. Configured in homeserver.yaml
         # as `spam_checker.config.links_table`.
         self._links_table = config["links_table"]
-        logger.info("Using links table %s" % self._links_table)
+        logger.info("Using links table %s", self._links_table)
 
         # The table containing md5 hashes. Configured in homeserver.yaml
         # as `spam_checker.config.links_table`.
         self._md5_table = config["md5_table"]
-        logger.info("Using md5 table %s" % self._md5_table)
+        logger.info("Using md5 table %s", self._md5_table)
 
         # How often we should check for updates in the database.
         # Configured in homeserver.yaml
@@ -94,17 +94,18 @@ class BadListFilter(object):
         Fetch the latest version of the links from the table, build an automaton.
         """
         logger.info(
-            "_update_links_automaton: fetching links from table %s" % self._links_table
+            "_update_links_automaton: fetching links from table %s", self._links_table,
         )
         try:
             links = await self._api.run_db_interaction(
                 "Fetch links from the table", _db_fetch_links, self._links_table
             )
-            logger.info("_update_links_automaton: we received %s links" % len(links))
-            self._link_automaton = Automaton(ahocorasick.STORE_LENGTH)
+            logger.info("_update_links_automaton: we received %d links", len(links))
+            new_link_automaton = Automaton(ahocorasick.STORE_LENGTH)
             for link in links:
-                self._link_automaton.add_word(link)
-            await deferToThread(self._link_automaton.make_automaton)
+                new_link_automaton.add_word(link)
+            await deferToThread(new_link_automaton.make_automaton)
+            self._link_automaton = new_link_automaton
         except Exception as e:
             logger.exception("_update_links_automaton: could not update")
             raise e
