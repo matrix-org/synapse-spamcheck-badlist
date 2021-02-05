@@ -96,14 +96,18 @@ class BadListFilter(object):
         logger.info(
             "_update_links_automaton: fetching links from table %s" % self._links_table
         )
-        links = await self._api.run_db_interaction(
-            "Fetch links from the table", _db_fetch_links, self._links_table
-        )
-        logger.info("_update_links_automaton: we received %s links" % len(links))
-        self._link_automaton = Automaton(ahocorasick.STORE_LENGTH)
-        for link in links:
-            self._link_automaton.add_word(link)
-        await deferToThread(self._link_automaton.make_automaton)
+        try:
+            links = await self._api.run_db_interaction(
+                "Fetch links from the table", _db_fetch_links, self._links_table
+            )
+            logger.info("_update_links_automaton: we received %s links" % len(links))
+            self._link_automaton = Automaton(ahocorasick.STORE_LENGTH)
+            for link in links:
+                self._link_automaton.add_word(link)
+            await deferToThread(self._link_automaton.make_automaton)
+        except Exception as e:
+            logger.error("_update_links_automaton: could not update %s" % e)
+            raise e
 
     async def _get_link_automaton(self) -> Automaton:
         """
