@@ -80,7 +80,7 @@ class BadListFilter(object):
         self._update_links_loop = LoopingCall(
             lambda: defer.ensureDeferred(self._update_links_automaton())
         )
-        self._update_links_loop.start(pull_from_db_every_sec)
+        self._update_links_loop.start(pull_from_db_every_sec, now=False)
         # As soon as we can, run the first fetch.
         # Note that we have no guarantee that this is finished
         # by the time we receive the first message, so we need
