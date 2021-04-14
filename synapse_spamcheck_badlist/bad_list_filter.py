@@ -19,7 +19,7 @@ import time
 
 import ahocorasick
 from ahocorasick import Automaton
-from prometheus_client import Histogram
+from prometheus_client import Counter, Histogram
 from twisted.internet import defer, reactor
 from twisted.internet.task import LoopingCall
 from twisted.internet.threads import deferToThread
@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 link_check_performance = Histogram(
     "synapse_spamcheck_badlist_link_check_performance",
     "Performance of link checking, in seconds. This operation is in the critical path between a message being sent and that message being delivered to other members.",
+)
+badlist_md5_found = Counter(
+    "synapse_spamcheck_badlist_md5_foumd",
+    "Number of bad uploads found by md5 check",
+)
+badlist_link_found = Counter(
+    "synapse_spamcheck_badlist_link_foumd",
+    "Number of bad uploads found by link check",
 )
 
 
@@ -144,6 +152,7 @@ class BadListFilter(object):
             ]:
                 for _ in automaton.iter(text):
                     logger.info("Rejected bad link")
+                    badlist_link_found.inc()
                     return True
 
         # Not spam
@@ -164,6 +173,7 @@ class BadListFilter(object):
             hex_digest,
         ):
             logger.info("Rejected bad media file")
+            badlist_md5_found.inc()
             return True
         return False
 
