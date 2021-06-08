@@ -1,7 +1,7 @@
 /.idea
 /build/
 /dist/
+env
 *.pyc
 *.egg
 *.egg-info
-
