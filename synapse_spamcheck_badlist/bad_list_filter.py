@@ -154,9 +154,12 @@ class BadListFilter(object):
             #
             # We always lower-case the url, as the IWF database is lowercase.
             for text in [
-                content.get("body", ""),
-                content.get("formatted_body", ""),
+                content.get("body"),
+                content.get("formatted_body"),
             ]:
+                if not isinstance(text, str):
+                    continue
+
                 for _ in automaton.iter(text):
                     logger.info("Rejected bad link")
                     badlist_link_found.inc()
