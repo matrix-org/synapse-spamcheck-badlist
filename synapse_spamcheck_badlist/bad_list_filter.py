@@ -97,12 +97,19 @@ class BadListFilter(object):
             lambda: defer.ensureDeferred(self._update_links_automaton())
         )
 
+        # Don't forget to register as a SpamCheck
+        self._api.register_spam_checker_callbacks(
+            check_event_for_spam=self.check_event_for_spam,
+            check_media_file_for_spam=self.check_media_file_for_spam,
+        )
+
     async def _update_links_automaton(self):
         """
         Fetch the latest version of the links from the table, build an automaton.
         """
         logger.info(
-            "_update_links_automaton: fetching links from table %s", self._links_table,
+            "_update_links_automaton: fetching links from table %s",
+            self._links_table,
         )
         try:
             links = await self._api.run_db_interaction(
@@ -176,27 +183,6 @@ class BadListFilter(object):
             badlist_md5_found.inc()
             return True
         return False
-
-    def check_username_for_spam(self, user_profile):
-        return False  # allow all usernames
-
-    def user_may_invite(
-        self, inviter_userid: str, invitee_userid: str, room_id: str
-    ) -> bool:
-        # Allow all invites
-        return True
-
-    def user_may_create_room(self, userid: str) -> bool:
-        # Allow all room creations
-        return True
-
-    def user_may_create_room_alias(self, userid: str, room_alias: str) -> bool:
-        # Allow all room aliases
-        return True
-
-    def user_may_publish_room(self, userid: str, room_id: str) -> bool:
-        # Allow publishing all rooms
-        return True
 
     @staticmethod
     def parse_config(config):
