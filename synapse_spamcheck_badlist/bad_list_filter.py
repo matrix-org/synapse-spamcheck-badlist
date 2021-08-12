@@ -99,7 +99,7 @@ class BadListFilter(object):
         # a fallback in `_get_links_automaton()`.
         reactor.callWhenRunning(
             lambda: defer.ensureDeferred(
-                context.run_in_background(self._update_links_automaton)
+                context.run_as_background_process(self._update_links_automaton)
             )
         )
 
