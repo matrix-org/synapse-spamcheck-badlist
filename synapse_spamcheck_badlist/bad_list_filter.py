@@ -24,6 +24,8 @@ from twisted.internet import defer, reactor
 from twisted.internet.task import LoopingCall
 from twisted.internet.threads import deferToThread
 
+from synapse.logging import context
+
 logger = logging.getLogger(__name__)
 
 link_check_performance = Histogram(
@@ -85,16 +87,20 @@ class BadListFilter(object):
         self._link_automaton = None
 
         # Start the loop to update links.
-        self._update_links_loop = LoopingCall(
-            lambda: defer.ensureDeferred(self._update_links_automaton())
+        api.looping_background_call(
+            f=self._update_links_automaton,
+            msec=pull_from_db_every_sec * 1000,
+            desc="Background update list of bad links",
         )
-        self._update_links_loop.start(pull_from_db_every_sec, now=False)
+
         # As soon as we can, run the first fetch.
         # Note that we have no guarantee that this is finished
         # by the time we receive the first message, so we need
         # a fallback in `_get_links_automaton()`.
         reactor.callWhenRunning(
-            lambda: defer.ensureDeferred(self._update_links_automaton())
+            lambda: defer.ensureDeferred(
+                context.run_in_background(self._update_links_automaton)
+            )
         )
 
     async def _update_links_automaton(self):
