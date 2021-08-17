@@ -14,8 +14,6 @@
 
 import hashlib
 import logging
-import re
-import time
 
 import ahocorasick
 from ahocorasick import Automaton
@@ -23,7 +21,6 @@ from prometheus_client import Counter, Histogram
 from twisted.internet import defer, reactor
 from twisted.internet.threads import deferToThread
 
-from synapse.logging import context
 from synapse.metrics.background_process_metrics import run_as_background_process
 
 logger = logging.getLogger(__name__)
@@ -103,6 +100,12 @@ class BadListFilter(object):
             )
         )
 
+        # And don't forget to register as a spam checker.
+        api.register_spam_checker_callbacks(
+            check_event_for_spam=self.check_event_for_spam,
+            check_media_file_for_spam=self.check_media_file_for_spam
+        )
+
     async def _update_links_automaton(self):
         """
         Fetch the latest version of the links from the table, build an automaton.
@@ -167,45 +170,28 @@ class BadListFilter(object):
         # Not spam
         return False
 
-    async def check_media_file_for_spam(self, file_wrapper, file_info):
-        # Compute MD5 of file.
-        hasher = hashlib.md5()
-        await file_wrapper.write_chunks_to(hasher.update)
+    async def check_media_file_for_spam(self, file_wrapper, _file_info):
+        try:
+            # Compute MD5 of file.
+            hasher = hashlib.md5()
+            await file_wrapper.write_chunks_to(hasher.update)
 
-        hex_digest = hasher.hexdigest()
+            hex_digest = hasher.hexdigest()
 
-        # Check if it shows up in the db.
-        if await self._api.run_db_interaction(
-            "Check whether this md5 shows up in the database",
-            _db_is_bad_upload,
-            self._md5_table,
-            hex_digest,
-        ):
-            logger.info("Rejected bad media file")
-            badlist_md5_found.inc()
-            return True
+            # Check if it shows up in the db.
+            if await self._api.run_db_interaction(
+                "Check whether this md5 shows up in the database",
+                _db_is_bad_upload,
+                self._md5_table,
+                hex_digest,
+            ):
+                logger.info("Rejected bad media file")
+                badlist_md5_found.inc()
+                return True
+        except Exception as e:
+            logger.exception("Could not analyze media file")
         return False
 
-    def check_username_for_spam(self, user_profile):
-        return False  # allow all usernames
-
-    def user_may_invite(
-        self, inviter_userid: str, invitee_userid: str, room_id: str
-    ) -> bool:
-        # Allow all invites
-        return True
-
-    def user_may_create_room(self, userid: str) -> bool:
-        # Allow all room creations
-        return True
-
-    def user_may_create_room_alias(self, userid: str, room_alias: str) -> bool:
-        # Allow all room aliases
-        return True
-
-    def user_may_publish_room(self, userid: str, room_id: str) -> bool:
-        # Allow publishing all rooms
-        return True
 
     @staticmethod
     def parse_config(config):
