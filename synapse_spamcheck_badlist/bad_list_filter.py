@@ -21,10 +21,10 @@ import ahocorasick
 from ahocorasick import Automaton
 from prometheus_client import Counter, Histogram
 from twisted.internet import defer, reactor
-from twisted.internet.task import LoopingCall
 from twisted.internet.threads import deferToThread
 
 from synapse.logging import context
+from synapse.metrics.background_process_metrics import run_as_background_process
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class BadListFilter(object):
         # a fallback in `_get_links_automaton()`.
         reactor.callWhenRunning(
             lambda: defer.ensureDeferred(
-                context.run_as_background_process(self._update_links_automaton)
+                run_as_background_process(func=self._update_links_automaton, desc="Background initial pull list of bad links")
             )
         )
 
