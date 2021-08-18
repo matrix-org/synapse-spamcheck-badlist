@@ -14,7 +14,7 @@ The filter:
 
 ## Requirements
 
-You need Synapse >= 1.28.0.
+You need Synapse >= 1.29.0.
 
 ## Installation
 
@@ -25,7 +25,7 @@ pip install git+https://github.com/matrix-org/synapse-spamcheck-badlist#egg=syna
 
 Then add to your `homeserver.yaml`:
 ```yaml
-spam_checker:
+modules:
   - module: "synapse_spamcheck_badlist.BadListFilter"
     config:
       # The URL of the server using this filter.
