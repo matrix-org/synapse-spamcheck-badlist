@@ -88,7 +88,7 @@ class BadListFilter(object):
             f=self._update_links_automaton,
             msec=pull_from_db_every_sec * 1000,
             desc="Background update list of bad links",
-            run_on_all_instances=True
+            run_on_all_instances=True,
         )
 
         # As soon as we can, run the first fetch.
