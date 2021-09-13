@@ -21,8 +21,8 @@ from prometheus_client import Counter, Histogram
 from twisted.internet import defer, reactor
 from twisted.internet.threads import deferToThread
 
-from synapse.logging.context import make_deferred_yieldable
 from synapse.metrics.background_process_metrics import run_as_background_process
+from synapse.module_api import make_deferred_yieldable
 
 logger = logging.getLogger(__name__)
 
