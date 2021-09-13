@@ -21,6 +21,7 @@ from prometheus_client import Counter, Histogram
 from twisted.internet import defer, reactor
 from twisted.internet.threads import deferToThread
 
+from synapse.logging.context import make_deferred_yieldable
 from synapse.metrics.background_process_metrics import run_as_background_process
 
 logger = logging.getLogger(__name__)
@@ -122,7 +123,7 @@ class BadListFilter(object):
             new_link_automaton = Automaton(ahocorasick.STORE_LENGTH)
             for link in links:
                 new_link_automaton.add_word(link)
-            await deferToThread(new_link_automaton.make_automaton)
+            await make_deferred_yieldable(deferToThread(new_link_automaton.make_automaton))
             self._link_automaton = new_link_automaton
         except Exception as e:
             logger.exception("_update_links_automaton: could not update")
