@@ -14,7 +14,7 @@ The filter:
 
 ## Requirements
 
-You need Synapse >= 1.29.0.
+You need Synapse >= 1.41.0.
 
 ## Installation
 
