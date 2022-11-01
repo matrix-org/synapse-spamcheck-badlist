@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+    branches: main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+#      When CI ran on BuildKite, we used to also run the following script to build a
+#      Synapse docker image from scratch.
+#      I leave it here for posterity and completeness.
+#      - name: Prepare the Docker image for Synapse `develop`
+#        run: test/before_test.sh
+      - name: Setup services and launch tests
+        run: docker-compose up --build --abort-on-container-exit
+
+

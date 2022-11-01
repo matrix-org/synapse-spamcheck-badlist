@@ -4,4 +4,4 @@
 
 \rm -Rf synapse
 git clone https://github.com/matrix-org/synapse.git
-docker build -t matrixdotorg/synapse -f synapse/docker/Dockerfile synapse
+DOCKER_BUILDKIT=1 docker build -t matrixdotorg/synapse -f synapse/docker/Dockerfile synapse

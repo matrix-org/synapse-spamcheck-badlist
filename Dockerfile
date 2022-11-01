@@ -1,7 +1,7 @@
 # A Dockerfile used for running tests.
 # This Dockerfile should work for other plug-ins, too.
 
-FROM matrixdotorg/synapse:latest
+FROM matrixdotorg/synapse:develop
 
 # Install extension.
 WORKDIR /data
