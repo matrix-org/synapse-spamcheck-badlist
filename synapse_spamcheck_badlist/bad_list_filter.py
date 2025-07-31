@@ -21,7 +21,6 @@ from prometheus_client import Counter, Histogram
 from twisted.internet import defer, reactor
 from twisted.internet.threads import deferToThread
 
-from synapse.metrics.background_process_metrics import run_as_background_process
 from synapse.module_api import make_deferred_yieldable
 
 logger = logging.getLogger(__name__)
@@ -98,7 +97,7 @@ class BadListFilter(object):
         # a fallback in `_get_links_automaton()`.
         reactor.callWhenRunning(
             lambda: defer.ensureDeferred(
-                run_as_background_process(func=self._update_links_automaton, desc="Background initial pull list of bad links")
+                api.run_as_background_process(func=self._update_links_automaton, desc="Background initial pull list of bad links")
             )
         )
 
